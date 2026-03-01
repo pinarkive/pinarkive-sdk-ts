@@ -100,3 +100,6 @@ logs
 # OS
 .DS_Store
 Thumbs.db
+
+# Internal doc – do not push to GitHub
+RELEASE-STEPS.md
