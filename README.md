@@ -1,459 +1,108 @@
-# Pinarkive TypeScript SDK
+# Pinarkive TypeScript SDK (API v3)
 
-TypeScript client for the Pinarkive API v2.3.1. Full type safety for IPFS file management with directory DAG uploads, file renaming, and enhanced API key management. Perfect for TypeScript projects requiring compile-time type checking.
+TypeScript client for the **Pinarkive API v3**. Uses native `fetch`; Bearer auth; **clusterId** (`cl`) and **timelock** (premium) support; **onUnauthorized** callback for 401/403.
+
+> **Version policy (as of Mar 2026):** Only **v3.x.x** is supported and maintained. **v2.3.1** and earlier are **obsolete**; please upgrade to v3.
 
 ## Installation
 
+**This package is distributed from GitHub, not from npm.**
+
 ```bash
-npm install @pinarkive/pinarkive-sdk-ts
+npm install github:pinarkive/pinarkive-sdk-ts
+```
+
+For a specific version (e.g. v3.0.0):
+
+```bash
+npm install github:pinarkive/pinarkive-sdk-ts#v3.0.0
+```
+
+## Base URL (required via .env or constructor)
+
+The base URL is **not hardcoded**. It must be set in **.env** or passed in the constructor:
+
+- **Browser:** the frontend injects `window.__ENV__` with `VITE_BACKEND_API_URL` and `VITE_API_BASE` (e.g. `/api/v3`). If present, the SDK uses them when `baseUrl` is not passed.
+- **Node:** `PINARKIVE_API_BASE_URL` (full URL) or `VITE_BACKEND_API_URL` + `VITE_API_BASE`.
+
+If no variable is set and `baseUrl` is not passed, the constructor throws an error.
+
+```env
+VITE_API_BASE=/api/v3
+VITE_BACKEND_API_URL=https://api.pinarkive.com
 ```
 
 ## Quick Start
 
 ```typescript
-import { PinarkiveClient } from '@pinarkive/pinarkive-sdk-ts';
+import { PinarkiveClient, getDefaultBaseUrl } from '@pinarkive/pinarkive-sdk-ts';
 
-// Initialize with API key
-const client = new PinarkiveClient({ 
-  apiKey: 'your-api-key-here' 
+// With options (baseUrl from .env if not passed)
+const client = new PinarkiveClient({
+  token: 'your-jwt-token',
+  onUnauthorized: () => { /* logout */ },
 });
 
-// Upload a file with full type safety
-const file = new File(['Hello World'], 'document.txt');
-const result = await client.uploadFile(file);
-console.log('File uploaded:', result.data.cid);
+// Or with explicit auth + baseURL
+const client = new PinarkiveClient(
+  { token: 'your-jwt-token' },
+  getDefaultBaseUrl() || 'https://api.pinarkive.com/api/v3'
+);
 
-// Generate API key with typed options
-const token = await client.generateToken('my-app', { 
-  expiresInDays: 30 
-});
-console.log('New API key:', token.data.token);
-```
+// Responses are the raw JSON body (not AxiosResponse)
+const me = await client.getMe();
+const result = await client.uploadFile(file, { clusterId: 'cl0-global' });
+console.log(result.cid);
 
-## Type Safety Benefits
-
-The TypeScript SDK provides compile-time type checking for all API operations:
-
-```typescript
-// TypeScript will catch errors at compile time
-const result = await client.uploadFile('invalid-file'); // ❌ Error: string not assignable to File | Blob
-
-// Proper typing for responses
-const uploads = await client.listUploads();
-uploads.data.uploads.forEach(upload => {
-  console.log(upload.cid); // ✅ TypeScript knows this is a string
-  console.log(upload.size); // ✅ TypeScript knows this is a number
-});
-
-// Type-safe options
-const token = await client.generateToken('my-app', {
-  expiresInDays: 30, // ✅ TypeScript validates this is a number
-  ipAllowlist: ['192.168.1.1'] // ✅ TypeScript validates this is string[]
-});
+await client.pinCid(cid, { customName: 'my-file', clusterId: 'cl0-global' });
 ```
 
 ## Authentication
 
-The SDK supports two authentication methods with proper typing:
+- **JWT Token:** `new PinarkiveClient({ token: '...' })` or in options.
+- **API Key:** `new PinarkiveClient({ apiKey: '...' })`.
+- **onUnauthorized:** optional callback; called on 401/403 (e.g. logout and redirect).
 
-### API Key Authentication (Recommended)
-```typescript
-const client = new PinarkiveClient({ 
-  apiKey: 'your-api-key-here' 
-});
-```
-**Note:** The SDK automatically sends the API key using the `Authorization: Bearer` header format, not `X-API-Key`.
+## Public routes (no Bearer)
 
-### JWT Token Authentication
-```typescript
-const client = new PinarkiveClient({ 
-  token: 'your-jwt-token-here' 
-});
-```
+- `getPlans()`, `getLanguages()`, `getCountries()`
+- `login(email, password)`, `signup({ name, email, password })`
 
-## Basic Usage
+## Upload and pin (v3)
 
-### File Upload
-```typescript
-// Upload single file with type safety
-const file = new File(['Hello World'], 'document.txt');
-const result: AxiosResponse<UploadResponse> = await client.uploadFile(file);
-console.log('CID:', result.data.cid);
-console.log('Status:', result.data.status);
-```
+For upload and pin you can send:
 
-### Directory Upload
-```typescript
-// Upload directory from local path
-const result = await client.uploadDirectory('/path/to/directory');
-console.log('Directory CID:', result.data.cid);
-```
-
-### List Uploads with Pagination
-```typescript
-// List all uploaded files with typed response
-const uploads = await client.listUploads(1, 20);
-console.log('Uploads:', uploads.data.uploads);
-console.log('Total:', uploads.data.pagination.total);
-
-// TypeScript provides autocomplete for upload properties
-uploads.data.uploads.forEach(upload => {
-  console.log(`File: ${upload.name}, Size: ${upload.size}, CID: ${upload.cid}`);
-});
-```
-
-## Advanced Features
-
-### Directory DAG Upload
-Upload entire directory structures as DAG (Directed Acyclic Graph) with full type safety:
+- **clusterId** (or `cl`): e.g. `cl0-global`. Default on the backend is `cl0-global`.
+- **timelock**: ISO 8601 UTC date (premium plans only); content expires at that time.
 
 ```typescript
-// Method 1: Array of typed file objects
-const files: FileUpload[] = [
-  { path: 'folder1/file1.txt', content: 'Hello World' },
-  { path: 'folder1/file2.txt', content: 'Another file' },
-  { path: 'folder2/subfolder/file3.txt', content: 'Nested file' }
-];
-
-const result = await client.uploadDirectoryDAG(files, { dirName: 'my-project' });
-console.log('DAG CID:', result.data.dagCid);
-console.log('Files:', result.data.files);
-
-// Method 2: Object with file paths as keys
-const filesObj: Record<string, string> = {
-  'folder1/file1.txt': 'Hello World',
-  'folder1/file2.txt': 'Another file',
-  'folder2/subfolder/file3.txt': 'Nested file'
-};
-
-const result2 = await client.uploadDirectoryDAG(filesObj);
+await client.uploadFile(file, { clusterId: 'cl0-global', timelock: '2026-12-31T23:59:59Z' });
+await client.uploadDirectory(dirPath, { clusterId: 'cl1-eu' });
+await client.uploadDirectoryDAG(files, { dirName: 'proj', clusterId: 'cl0-global' });
+await client.pinCid(cid, { customName: 'doc', clusterId: 'cl0-global' });
 ```
 
-### Directory Cluster Upload
-```typescript
-const files: FileUpload[] = [
-  { path: 'file1.txt', content: 'Content 1' },
-  { path: 'file2.txt', content: 'Content 2' }
-];
-
-const result = await client.uploadDirectoryCluster(files);
-console.log('Cluster CID:', result.data.cid);
-```
-
-### Upload File to Existing Directory
-```typescript
-const file = new File(['New content'], 'new-file.txt');
-const result = await client.uploadFileToDirectory(file, 'existing-directory-path');
-console.log('File added to directory:', result.data.cid);
-```
-
-### File Renaming
-```typescript
-// Rename an uploaded file with type safety
-const result = await client.renameFile('upload-id-here', 'new-file-name.pdf');
-console.log('File renamed:', result.data.updated);
-console.log('New name:', result.data.newName);
-```
-
-### File Removal
-```typescript
-// Remove a file from storage with type safety
-const result = await client.removeFile('QmYourCIDHere');
-console.log('File removed:', result.data.success);
-```
-
-### Pinning Operations
-
-#### Basic CID Pinning
-```typescript
-// Pin with filename
-const result = await client.pinCid('QmYourCIDHere', 'my-file.pdf');
-console.log('CID pinned:', result.data.pinned);
-
-// Pin without filename (backend will use default)
-const result2 = await client.pinCid('QmYourCIDHere');
-console.log('CID pinned:', result2.data.pinned);
-```
-
-#### Pin with Custom Name
-```typescript
-const result = await client.pinCid('QmYourCIDHere', 'my-important-file');
-console.log('CID pinned with name:', result.data.pinned);
-console.log('Custom name:', result.data.customName);
-```
-
-### API Key Management
-
-#### Generate API Key with Typed Options
-```typescript
-// Basic token generation
-const token = await client.generateToken('my-app');
-
-// Advanced token with typed options
-const token = await client.generateToken('my-app', {
-  expiresInDays: 30,
-  ipAllowlist: ['192.168.1.1', '10.0.0.1'],
-  permissions: ['upload', 'pin']
-});
-console.log('New API key:', token.data.token);
-console.log('Expires at:', token.data.expiresAt);
-```
-
-#### List API Keys
-```typescript
-const tokens = await client.listTokens();
-console.log('API Keys:', tokens.data.tokens);
-```
-
-#### Revoke API Key
-```typescript
-const result = await client.revokeToken('my-app');
-console.log('Token revoked:', result.data.revoked);
-```
-
-## Type Definitions
-
-The SDK exports comprehensive type definitions for all operations:
+## List allowed clusters
 
 ```typescript
-import { 
-  PinarkiveClient,
-  AuthType,
-  FileUpload,
-  DirectoryDAGOptions,
-  TokenGenerateOptions,
-  UploadResponse,
-  DirectoryDAGResponse,
-  TokenResponse,
-  PinResponse,
-  RenameResponse,
-  UploadsResponse
-} from '@pinarkive/pinarkive-sdk-typescript';
-
-// Use types in your own code
-const auth: AuthType = { apiKey: 'your-key' };
-const options: TokenGenerateOptions = { expiresInDays: 30 };
+const clusters = await client.getClusters();
+// Array<{ id, label, region?, country? }>
 ```
 
-## Error Handling with TypeScript
+## API reference (summary)
 
-```typescript
-try {
-  const result = await client.uploadFile(file);
-  console.log('Success:', result.data);
-} catch (error) {
-  if (axios.isAxiosError(error)) {
-    // TypeScript knows this is an Axios error
-    console.error('API Error:', error.response?.data);
-    console.error('Status:', error.response?.status);
-  } else {
-    console.error('Network Error:', error.message);
-  }
-}
-```
+- **Files:** `uploadFile`, `uploadDirectory`, `uploadDirectoryDAG`, `renameFile`, `removeFile`, `listUploads`
+- **Pin:** `pinCid(cid, options?)` with `customName`, `clusterId`, `timelock`
+- **Tokens:** `generateToken`, `listTokens`, `revokeToken`
+- **User:** `getMe`, `getClusters`, `getPreferences`, `updatePreferences`, `getMyPlan`, `getPlansForUser`
+- **Status:** `getStatus(cid)`, `getAllocations(cid)`
 
-## Browser Usage
+Responses are the **JSON object** returned by the API (no Axios-style wrapper). On error an `Error` is thrown with the server message; if `onUnauthorized` is defined, it is called on 401/403.
 
-```typescript
-// In browser environment with full type safety
-const client = new PinarkiveClient({ 
-  apiKey: 'your-api-key' 
-});
+## Build
 
-// Upload file from file input with proper typing
-const fileInput = document.getElementById('fileInput') as HTMLInputElement;
-const file = fileInput.files?.[0];
-
-if (file) {
-  const result = await client.uploadFile(file);
-  console.log('File uploaded:', result.data.cid);
-}
-```
-
-## Build Instructions
-
-### For Node.js Projects
 ```bash
-# Install dependencies
-npm install @pinarkive/pinarkive-sdk-typescript
-
-# Build the project
 npm run build
-
-# Use in your code
-import { PinarkiveClient } from '@pinarkive/pinarkive-sdk-ts';
 ```
 
-### For Browser Projects
-```typescript
-// The SDK works in both Node.js and browser environments
-// For bundlers like webpack, rollup, or vite, import directly:
-import { PinarkiveClient } from '@pinarkive/pinarkive-sdk-ts';
-```
-
-## API Reference
-
-### Constructor
-```typescript
-new PinarkiveClient(auth: AuthType, baseURL?: string)
-```
-- `auth`: Object with either `apiKey` or `token`
-- `baseURL`: Optional base URL (defaults to `https://api.pinarkive.com/api/v2`)
-
-### File Operations
-- `uploadFile(file: File | Blob): Promise<AxiosResponse<UploadResponse>>` - Upload single file
-- `uploadDirectory(dirPath: string): Promise<AxiosResponse<UploadResponse>>` - Upload directory recursively (calls uploadFile for each file)
-- `uploadDirectoryDAG(files, options?): Promise<AxiosResponse<DirectoryDAGResponse>>` - Upload directory as DAG structure
-- `renameFile(uploadId: string, newName: string): Promise<AxiosResponse<RenameResponse>>` - Rename uploaded file
-- `removeFile(cid: string): Promise<AxiosResponse<any>>` - Remove file from storage
-
-### Pinning Operations
-- `pinCid(cid: string, filename?: string): Promise<AxiosResponse<PinResponse>>` - Pin CID to account with optional filename
-
-### User Operations
-- `listUploads(page?: number, limit?: number): Promise<AxiosResponse<UploadsResponse>>` - List uploaded files
-
-### Token Management
-- `generateToken(name: string, options?: TokenGenerateOptions): Promise<AxiosResponse<TokenResponse>>` - Generate API key
-- `listTokens(): Promise<AxiosResponse<any>>` - List all API keys
-- `revokeToken(name: string): Promise<AxiosResponse<any>>` - Revoke API key
-
-
-### Status & Monitoring
-- `getStatus(cid: string): Promise<AxiosResponse<any>>` - Get file status
-- `getAllocations(cid: string): Promise<AxiosResponse<any>>` - Get storage allocations
-
-## Examples
-
-### Complete File Management Workflow
-```typescript
-import { PinarkiveClient } from '@pinarkive/pinarkive-sdk-ts';
-
-async function manageFiles() {
-  const client = new PinarkiveClient({ 
-    apiKey: 'your-api-key' 
-  });
-
-  try {
-    // 1. Upload a file with type safety
-    const file = new File(['Hello World'], 'document.txt');
-    const upload = await client.uploadFile(file);
-    console.log('Uploaded:', upload.data.cid);
-
-    // 2. Pin the CID with a custom name
-    await client.pinCid(upload.data.cid, 'important-document');
-
-    // 3. Rename the file
-    if (upload.data.uploadId) {
-      await client.renameFile(upload.data.uploadId, 'my-document.txt');
-    }
-
-    // 4. List all uploads with typed response
-    const uploads = await client.listUploads();
-    console.log('All uploads:', uploads.data.uploads);
-
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error('API Error:', error.response?.data);
-    } else {
-      console.error('Error:', error.message);
-    }
-  }
-}
-
-manageFiles();
-```
-
-### Directory Upload Workflow with Type Safety
-```typescript
-async function uploadProject() {
-  const client = new PinarkiveClient({ 
-    apiKey: 'your-api-key' 
-  });
-
-  // Create project structure with proper typing
-  const projectFiles: Record<string, string> = {
-    'src/index.ts': 'console.log("Hello World");',
-    'src/utils.ts': 'export const utils = {};',
-    'package.json': JSON.stringify({ name: 'my-project' }),
-    'README.md': '# My Project\n\nThis is my project.'
-  };
-
-  try {
-    const result = await client.uploadDirectoryDAG(projectFiles, { dirName: 'my-project' });
-    console.log('Project uploaded:', result.data.dagCid);
-    console.log('Files:', result.data.files);
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error('Upload failed:', error.response?.data);
-    }
-  }
-}
-
-uploadProject();
-```
-
-## Integration with Popular Frameworks
-
-### React with TypeScript
-```typescript
-import React, { useState } from 'react';
-import { PinarkiveClient } from '@pinarkive/pinarkive-sdk-ts';
-
-const FileUploader: React.FC = () => {
-  const [uploading, setUploading] = useState(false);
-  const client = new PinarkiveClient({ apiKey: 'your-api-key' });
-
-  const handleFileUpload = async (file: File) => {
-    setUploading(true);
-    try {
-      const result = await client.uploadFile(file);
-      console.log('File uploaded:', result.data.cid);
-    } catch (error) {
-      console.error('Upload failed:', error);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  return (
-    <input 
-      type="file" 
-      onChange={(e) => {
-        const file = e.target.files?.[0];
-        if (file) handleFileUpload(file);
-      }}
-      disabled={uploading}
-    />
-  );
-};
-```
-
-### Next.js with TypeScript
-```typescript
-// pages/api/upload.ts
-import { NextApiRequest, NextApiResponse } from 'next';
-import { PinarkiveClient } from '@pinarkive/pinarkive-sdk-ts';
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
-
-  const client = new PinarkiveClient({ apiKey: process.env.PINARKIVE_API_KEY! });
-
-  try {
-    const result = await client.uploadFile(req.body.file);
-    res.status(200).json(result.data);
-  } catch (error) {
-    res.status(500).json({ error: 'Upload failed' });
-  }
-}
-```
-
-## Support
-
-For issues or questions:
-- GitHub Issues: [https://github.com/pinarkive/pinarkive-sdk-ts/issues](https://github.com/pinarkive/pinarkive-sdk-ts/issues)
-- API Documentation: [https://api.pinarkive.com/docs](https://api.pinarkive.com/docs)
-- Contact: [https://pinarkive.com/docs.php](https://pinarkive.com/docs.php) 
+Output in `dist/`.

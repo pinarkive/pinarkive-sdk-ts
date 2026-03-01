@@ -1,14 +1,11 @@
 {
   "name": "@pinarkive/pinarkive-sdk-ts",
-  "version": "2.3.1",
-  "description": "TypeScript SDK for the Pinarkive API v2.3.1 - Full type safety for IPFS file management with directory DAG uploads, file renaming, and enhanced API key management. Perfect for TypeScript projects requiring compile-time type checking.",
+  "version": "3.0.0",
+  "description": "TypeScript SDK for the Pinarkive API v3 - fetch-based, Bearer auth, clusterId (cl) and timelock support. Replaces secureFetch/publicFetch in apps.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc"
-  },
-  "dependencies": {
-    "axios": "^1.7.2"
   },
   "devDependencies": {
     "typescript": "^5.5.4"
@@ -23,13 +20,11 @@
     "api",
     "sdk",
     "typescript",
-    "v2.x",
-    "directory-dag",
-    "pinning",
-    "api-keys",
+    "v3",
     "ipfs",
-    "file-management",
-    "type-safe"
+    "pinning",
+    "cluster",
+    "timelock"
   ],
   "author": "ITCS VIP",
   "publishConfig": {
