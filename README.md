@@ -20,7 +20,7 @@ npm install @pinarkive/pinarkive-sdk-ts
 npm install github:pinarkive/pinarkive-sdk-ts
 ```
 
-For a specific version: `@pinarkive/pinarkive-sdk-ts@3.0.2` (npm) or `github:pinarkive/pinarkive-sdk-ts#v3.0.2` (GitHub).
+For a specific version: `@pinarkive/pinarkive-sdk-ts@3.0.3` (npm) or `github:pinarkive/pinarkive-sdk-ts#v3.0.3` (GitHub).
 
 ## Base URL (required via .env or constructor)
 
