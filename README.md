@@ -6,17 +6,21 @@ TypeScript client for the **Pinarkive API v3**. Uses native `fetch`; Bearer auth
 
 ## Installation
 
-**This package is distributed from GitHub, not from npm.**
+You can install from **npm** (recommended) or from **GitHub**.
+
+**From npm:**
+
+```bash
+npm install @pinarkive/pinarkive-sdk-ts
+```
+
+**From GitHub:**
 
 ```bash
 npm install github:pinarkive/pinarkive-sdk-ts
 ```
 
-For a specific version (e.g. v3.0.0):
-
-```bash
-npm install github:pinarkive/pinarkive-sdk-ts#v3.0.0
-```
+For a specific version: `@pinarkive/pinarkive-sdk-ts@3.0.2` (npm) or `github:pinarkive/pinarkive-sdk-ts#v3.0.2` (GitHub).
 
 ## Base URL (required via .env or constructor)
 
