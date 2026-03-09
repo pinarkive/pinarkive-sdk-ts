@@ -5,6 +5,21 @@
 
 export type AuthType = { token?: string; apiKey?: string };
 
+/** Thrown on API 4xx/5xx. For 403 missing_scope, check code and required. For 429, check retryAfterSeconds. */
+export class PinarkiveAPIError extends Error {
+  constructor(
+    message: string,
+    public statusCode: number,
+    public code?: string,
+    public required?: string,
+    public retryAfterSeconds?: number,
+    public body?: Record<string, unknown>
+  ) {
+    super(message);
+    this.name = 'PinarkiveAPIError';
+  }
+}
+
 export interface ClientOptions {
   /** Base URL including path (e.g. https://api.pinarkive.com/api/v3) */
   baseUrl?: string;
@@ -13,6 +28,12 @@ export interface ClientOptions {
   apiKey?: string;
   /** Called on 401/403 so the app can logout/redirect */
   onUnauthorized?: () => void;
+  /**
+   * When set to 'web', sends header "X-Request-Source: web" on every Bearer-authenticated request.
+   * Use this when the SDK runs in the browser so the backend logs classify the request as WEB instead of JWT.
+   * Only applied when using Bearer (token); never sent when using apiKey.
+   */
+  requestSource?: 'web';
 }
 
 export interface FileUpload {
@@ -36,9 +57,16 @@ export interface PinOptions {
 }
 
 export interface TokenGenerateOptions {
+  /** API scopes (e.g. files:read, files:write). If omitted, backend uses default minimal scopes. */
+  scopes?: string[];
+  /** @deprecated Use scopes. Legacy permissions array. */
   permissions?: string[];
   expiresInDays?: number;
   ipAllowlist?: string[];
+  /** 2FA: required when account has 2FA enabled. Current 6-digit TOTP code. */
+  totpCode?: string;
+  /** 2FA: alias for totpCode. */
+  twoFactorCode?: string;
 }
 
 export interface UploadResponse {
@@ -56,6 +84,8 @@ export interface TokenResponse {
   token: string;
   name: string;
   expiresAt?: string;
+  /** Scopes assigned to this token (from API). */
+  scopes?: string[];
 }
 
 export interface PinResponse {
@@ -118,12 +148,14 @@ export class PinarkiveClient {
   private baseUrl: string;
   private auth: AuthType;
   private onUnauthorized?: () => void;
+  private requestSource?: 'web';
 
   constructor(authOrOptions: AuthType | ClientOptions, baseURL?: string) {
     if (typeof baseURL === 'string') {
       this.baseUrl = baseURL.replace(/\/$/, '');
       this.auth = authOrOptions as AuthType;
       this.onUnauthorized = undefined;
+      this.requestSource = undefined;
     } else {
       const opts = authOrOptions as ClientOptions;
       const resolved = opts.baseUrl || getDefaultBaseUrl();
@@ -135,6 +167,7 @@ export class PinarkiveClient {
       this.baseUrl = resolved.replace(/\/$/, '');
       this.auth = { token: opts.token, apiKey: opts.apiKey };
       this.onUnauthorized = opts.onUnauthorized;
+      this.requestSource = opts.requestSource;
     }
   }
 
@@ -149,6 +182,10 @@ export class PinarkiveClient {
     if (requireAuth) {
       const token = this.auth.token || this.auth.apiKey;
       if (token) headers.set('Authorization', `Bearer ${token}`);
+      // Only send X-Request-Source: web when using Bearer (JWT), not when using API Key
+      if (this.requestSource === 'web' && this.auth.token) {
+        headers.set('X-Request-Source', 'web');
+      }
     }
 
     if (init.body && typeof init.body === 'string' && !headers.has('Content-Type')) {
@@ -160,10 +197,11 @@ export class PinarkiveClient {
 
     if (!res.ok) {
       let message = 'Request failed';
+      let body: Record<string, unknown> | undefined;
       if (contentType.includes('application/json')) {
         try {
-          const err = await res.json();
-          message = (err as { error?: string }).error || message;
+          body = (await res.json()) as Record<string, unknown>;
+          message = (body.message as string) ?? (body.error as string) ?? message;
         } catch {
           // ignore
         }
@@ -171,7 +209,22 @@ export class PinarkiveClient {
       if ([401, 403].includes(res.status) && this.onUnauthorized) {
         this.onUnauthorized();
       }
-      throw new Error(message);
+      const code = body?.code as string | undefined;
+      const required = body?.required as string | undefined;
+      const retryAfterBody = body?.retryAfter as number | undefined;
+      const retryAfterHeader = res.headers.get('Retry-After');
+      const retryAfterSeconds =
+        res.status === 429
+          ? retryAfterBody ?? (retryAfterHeader ? parseInt(retryAfterHeader, 10) : undefined)
+          : undefined;
+      throw new PinarkiveAPIError(
+        message,
+        res.status,
+        code,
+        required,
+        retryAfterSeconds,
+        body
+      );
     }
 
     if (res.status === 204 || res.headers.get('content-length') === '0') {
@@ -196,10 +249,29 @@ export class PinarkiveClient {
     return this.request('/locales/countries', { requireAuth: false });
   }
 
-  async login(email: string, password: string): Promise<{ token: string; user?: unknown }> {
+  /** Login. If response has requires2FA and temporaryToken, call verify2FALogin(temporaryToken, code) to get the session token. */
+  async login(
+    email: string,
+    password: string
+  ): Promise<
+    | { token: string; user?: unknown }
+    | { requires2FA: true; temporaryToken: string }
+  > {
     return this.request('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
+      requireAuth: false,
+    });
+  }
+
+  /** Complete login after 2FA. Call with temporaryToken and 6-digit code from authenticator app. */
+  async verify2FALogin(
+    temporaryToken: string,
+    code: string
+  ): Promise<{ token: string; user?: unknown }> {
+    return this.request('/auth/2fa/verify-login', {
+      method: 'POST',
+      body: JSON.stringify({ temporaryToken, code }),
       requireAuth: false,
     });
   }
@@ -301,9 +373,12 @@ export class PinarkiveClient {
   // --- Token Management ---
   async generateToken(name: string, options: TokenGenerateOptions = {}): Promise<TokenResponse> {
     const payload: Record<string, unknown> = { name };
+    if (options.scopes?.length) payload.scopes = options.scopes;
     if (options.permissions) payload.permissions = options.permissions;
     if (options.expiresInDays != null) payload.expiresInDays = options.expiresInDays;
     if (options.ipAllowlist) payload.ipAllowlist = options.ipAllowlist;
+    const totp = options.totpCode ?? options.twoFactorCode;
+    if (totp) payload.totpCode = totp;
     return this.request<TokenResponse>('/tokens/generate', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -314,8 +389,18 @@ export class PinarkiveClient {
     return this.request('/tokens/list');
   }
 
-  async revokeToken(name: string): Promise<void> {
-    return this.request(`/tokens/revoke/${encodeURIComponent(name)}`, { method: 'DELETE' });
+  /** Revoke token by name. If account has 2FA, pass totpCode in options. */
+  async revokeToken(name: string, options?: { totpCode?: string; twoFactorCode?: string }): Promise<void> {
+    const body =
+      options?.totpCode != null
+        ? JSON.stringify({ totpCode: options.totpCode })
+        : options?.twoFactorCode != null
+          ? JSON.stringify({ twoFactorCode: options.twoFactorCode })
+          : undefined;
+    return this.request(`/tokens/revoke/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+      ...(body && { body }),
+    });
   }
 
   // --- Status ---

@@ -20,7 +20,7 @@ npm install @pinarkive/pinarkive-sdk-ts
 npm install github:pinarkive/pinarkive-sdk-ts
 ```
 
-For a specific version: `@pinarkive/pinarkive-sdk-ts@3.0.3` (npm) or `github:pinarkive/pinarkive-sdk-ts#v3.0.3` (GitHub).
+For a specific version: `@pinarkive/pinarkive-sdk-ts@3.1.0` (npm) or `github:pinarkive/pinarkive-sdk-ts#v3.1.0` (GitHub).
 
 ## Base URL (required via .env or constructor)
 
@@ -66,6 +66,7 @@ await client.pinCid(cid, { customName: 'my-file', clusterId: 'cl0-global' });
 - **JWT Token:** `new PinarkiveClient({ token: '...' })` or in options.
 - **API Key:** `new PinarkiveClient({ apiKey: '...' })`.
 - **onUnauthorized:** optional callback; called on 401/403 (e.g. logout and redirect).
+- **requestSource: 'web':** optional. When the SDK is used from the **browser/frontend**, pass `requestSource: 'web'` so the backend adds the header `X-Request-Source: web` on every Bearer-authenticated request. The backend will then classify those requests as **WEB** in logs instead of **JWT** (CLI/scripts). This option is only applied when using Bearer (token); it is never sent when using API Key.
 
 ## Public routes (no Bearer)
 
@@ -101,7 +102,12 @@ const clusters = await client.getClusters();
 - **User:** `getMe`, `getClusters`, `getPreferences`, `updatePreferences`, `getMyPlan`, `getPlansForUser`
 - **Status:** `getStatus(cid)`, `getAllocations(cid)`
 
-Responses are the **JSON object** returned by the API (no Axios-style wrapper). On error an `Error` is thrown with the server message; if `onUnauthorized` is defined, it is called on 401/403.
+Responses are the **JSON object** returned by the API (no Axios-style wrapper). On error the SDK throws **`PinarkiveAPIError`** (extends `Error`) with `statusCode`, `message`, and optionally `code`, `required` (for 403 `missing_scope`), `retryAfterSeconds` (for 429). If `onUnauthorized` is defined, it is called on 401/403.
+
+- **Scopes:** `generateToken(name, { scopes: ['files:read', 'files:write'], ... })`; response and list include `scopes`.
+- **429:** Catch `PinarkiveAPIError`, check `e.retryAfterSeconds` and retry after that delay (or show “retry” to the user).
+- **2FA login:** If `login()` returns `{ requires2FA: true, temporaryToken }`, call `verify2FALogin(temporaryToken, code)` with the 6-digit code.
+- **2FA tokens:** When the account has 2FA, pass `totpCode` (or `twoFactorCode`) in `generateToken` options and in `revokeToken(name, { totpCode: '...' })`.
 
 ## Build
 
