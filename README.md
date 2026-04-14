@@ -20,7 +20,7 @@ npm install @pinarkive/pinarkive-sdk-ts
 npm install github:pinarkive/pinarkive-sdk-ts
 ```
 
-For a specific version: `@pinarkive/pinarkive-sdk-ts@3.1.1` (npm) or `github:pinarkive/pinarkive-sdk-ts#v3.1.1` (GitHub).
+For a specific version: `@pinarkive/pinarkive-sdk-ts@3.1.4` (npm) or `github:pinarkive/pinarkive-sdk-ts#v3.1.4` (GitHub).
 
 ## Base URL (required via .env or constructor)
 
@@ -105,7 +105,7 @@ The backend uses **multer** `upload.array('files')`. Each file must be appended 
 
 Optional `dirName` is sent as a form field (backend may ignore it for the stored name).
 
-> **Other SDKs:** The JavaScript / Go / PHP / Python clients in this repo may still use the old `files[i][path]` shape until they are updated in a separate release.
+> **Other SDKs:** JavaScript, Go, PHP, and Python v3 clients use the same **`files`** multipart shape as this SDK.
 
 Release notes: see [CHANGELOG.md](./CHANGELOG.md).
 
@@ -138,3 +138,8 @@ npm run build
 ```
 
 Output in `dist/`.
+
+## Links
+
+- [Documentation](https://docs.pinarkive.com)
+- [Repository](https://github.com/pinarkive/pinarkive-sdk-ts)

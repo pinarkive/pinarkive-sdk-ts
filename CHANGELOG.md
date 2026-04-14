@@ -2,6 +2,12 @@
 
 All notable changes to `@pinarkive/pinarkive-sdk-ts` are documented here.
 
+## [3.1.4] - 2026-04-14
+
+### Changed
+
+- **Documentation:** Added [docs.pinarkive.com](https://docs.pinarkive.com) link in README; clarified that other v3 SDKs use the same `files` multipart format for directory DAG uploads.
+
 ## [3.1.1] - 2026-04-14
 
 ### Fixed
@@ -12,7 +18,7 @@ All notable changes to `@pinarkive/pinarkive-sdk-ts` are documented here.
 ### Migration
 
 - Replace `result.dagCid` with **`result.cid`**.
-- Other SDKs in the monorepo (JavaScript, Go, PHP, Python) may still use the legacy multipart shape until updated separately.
+- Other v3 SDKs (JavaScript, Go, PHP, Python) now use the same **`files`** multipart shape.
 
 ### Publishing this package (do not run from CI without secrets)
 
