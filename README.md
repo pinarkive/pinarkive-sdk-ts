@@ -20,7 +20,7 @@ npm install @pinarkive/pinarkive-sdk-ts
 npm install github:pinarkive/pinarkive-sdk-ts
 ```
 
-For a specific version: `@pinarkive/pinarkive-sdk-ts@3.1.0` (npm) or `github:pinarkive/pinarkive-sdk-ts#v3.1.0` (GitHub).
+For a specific version: `@pinarkive/pinarkive-sdk-ts@3.1.1` (npm) or `github:pinarkive/pinarkive-sdk-ts#v3.1.1` (GitHub).
 
 ## Base URL (required via .env or constructor)
 
@@ -83,9 +83,31 @@ For upload and pin you can send:
 ```typescript
 await client.uploadFile(file, { clusterId: 'cl0-global', timelock: '2026-12-31T23:59:59Z' });
 await client.uploadDirectory(dirPath, { clusterId: 'cl1-eu' });
-await client.uploadDirectoryDAG(files, { dirName: 'proj', clusterId: 'cl0-global' });
+const dag = await client.uploadDirectoryDAG(
+  [
+    { path: '1.png', content: pngBlob },
+    { path: '2.png', content: otherPng },
+  ],
+  { dirName: 'launchpad', clusterId: 'cl0-global' }
+);
+console.log(dag.cid); // root CID → gateway …/ipfs/<cid>/1.png
 await client.pinCid(cid, { customName: 'doc', clusterId: 'cl0-global' });
 ```
+
+### Directory DAG (`uploadDirectoryDAG`)
+
+The backend uses **multer** `upload.array('files')`. Each file must be appended as the field **`files`**, with the **multipart filename** equal to the path inside the DAG (e.g. `1.png`, `icons/logo.svg`). This matches the web app helper `uploadFilesAsDag` (`formData.append('files', file, filePath)`).
+
+- **Browser:** use `File` or `Blob` as `content`; `path` is the relative path in the DAG.
+- **Node.js 18+:** native `fetch`, `FormData`, and `Blob` are enough; pass a `Blob` (or `File` if available) for binary data, or a `string` for UTF-8 text (sent as `application/octet-stream`).
+- **`FileUpload[]`:** `{ path: string; content: File | Blob | string }`.
+- **Object form:** `Record<string, File | Blob | string>` — keys are paths, values are contents.
+
+Optional `dirName` is sent as a form field (backend may ignore it for the stored name).
+
+> **Other SDKs:** The JavaScript / Go / PHP / Python clients in this repo may still use the old `files[i][path]` shape until they are updated in a separate release.
+
+Release notes: see [CHANGELOG.md](./CHANGELOG.md).
 
 ## List allowed clusters
 

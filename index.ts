@@ -75,9 +75,24 @@ export interface UploadResponse {
   uploadId?: string;
 }
 
+/** One file inside the DAG (shape from POST /files/directory-dag success body). */
+export interface DirectoryDAGFileInfo {
+  cid: string;
+  filename: string;
+  size: number;
+  path: string;
+}
+
+/** Success body from POST /files/directory-dag (201). Root CID is `cid`. */
 export interface DirectoryDAGResponse {
-  dagCid: string;
-  files: Array<{ path: string; cid: string }>;
+  message: string;
+  cid: string;
+  filename: string;
+  size: number;
+  type: 'directory';
+  files: DirectoryDAGFileInfo[];
+  total_files: number;
+  total_size: number;
 }
 
 export interface TokenResponse {
@@ -142,6 +157,25 @@ export function getDefaultBaseUrl(): string {
     return `${b}${apiBase.startsWith('/') ? apiBase : `/${apiBase}`}`;
   }
   return '';
+}
+
+/**
+ * Appends one file part for POST /files/directory-dag.
+ * The Pinarkive API uses multer `upload.array('files')`: repeated field name **`files`**,
+ * multipart filename = path inside the DAG (e.g. `1.png` or `assets/logo.png`).
+ * Same as pinarkive-frontend `uploadFilesAsDag`: `formData.append('files', file, filePath)`.
+ */
+function appendDirectoryDagFile(form: FormData, relativePath: string, content: File | Blob | string): void {
+  const path = relativePath.replace(/\\/g, '/').trim();
+  if (!path || path.startsWith('/') || path.split('/').some((seg) => seg === '..')) {
+    throw new Error(`Invalid DAG path: ${relativePath}`);
+  }
+  if (typeof content === 'string') {
+    const blob = new Blob([content], { type: 'application/octet-stream' });
+    form.append('files', blob, path);
+    return;
+  }
+  form.append('files', content, path);
 }
 
 export class PinarkiveClient {
@@ -317,15 +351,13 @@ export class PinarkiveClient {
     if (options.timelock) form.append('timelock', options.timelock);
 
     if (Array.isArray(files)) {
-      files.forEach((file, index) => {
-        form.append(`files[${index}][path]`, file.path);
-        form.append(`files[${index}][content]`, file.content);
-      });
+      for (const file of files) {
+        appendDirectoryDagFile(form, file.path, file.content);
+      }
     } else {
-      Object.keys(files).forEach((path, index) => {
-        form.append(`files[${index}][path]`, path);
-        form.append(`files[${index}][content]`, files[path]);
-      });
+      for (const [p, content] of Object.entries(files)) {
+        appendDirectoryDagFile(form, p, content);
+      }
     }
     return this.request<DirectoryDAGResponse>('/files/directory-dag', { method: 'POST', body: form });
   }
