@@ -2,6 +2,12 @@
 
 All notable changes to `@pinarkive/pinarkive-sdk-ts` are documented here.
 
+## [3.1.5] - 2026-04-14
+
+### Fixed
+
+- **`onUnauthorized`:** Se invoca solo ante **HTTP 401**, no ante **403**. Un 403 puede ser `missing_scope` u otro permiso; no debe forzar logout (p. ej. en el navegador).
+
 ## [3.1.4] - 2026-04-14
 
 ### Changed

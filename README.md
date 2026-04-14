@@ -1,6 +1,6 @@
 # Pinarkive TypeScript SDK (API v3)
 
-TypeScript client for the **Pinarkive API v3**. Uses native `fetch`; Bearer auth; **clusterId** (`cl`) and **timelock** (premium) support; **onUnauthorized** callback for 401/403.
+TypeScript client for the **Pinarkive API v3**. Uses native `fetch`; Bearer auth; **clusterId** (`cl`) and **timelock** (premium) support; **onUnauthorized** callback for 401.
 
 > **Version policy (as of Mar 2026):** Only **v3.x.x** is supported and maintained. **v2.3.1** and earlier are **obsolete**; please upgrade to v3.
 
@@ -20,7 +20,7 @@ npm install @pinarkive/pinarkive-sdk-ts
 npm install github:pinarkive/pinarkive-sdk-ts
 ```
 
-For a specific version: `@pinarkive/pinarkive-sdk-ts@3.1.4` (npm) or `github:pinarkive/pinarkive-sdk-ts#v3.1.4` (GitHub).
+For a specific version: `@pinarkive/pinarkive-sdk-ts@3.1.5` (npm) or `github:pinarkive/pinarkive-sdk-ts#v3.1.5` (GitHub).
 
 ## Base URL (required via .env or constructor)
 
@@ -65,7 +65,7 @@ await client.pinCid(cid, { customName: 'my-file', clusterId: 'cl0-global' });
 
 - **JWT Token:** `new PinarkiveClient({ token: '...' })` or in options.
 - **API Key:** `new PinarkiveClient({ apiKey: '...' })`.
-- **onUnauthorized:** optional callback; called on 401/403 (e.g. logout and redirect).
+- **onUnauthorized:** optional callback; called on 401 (e.g. logout and redirect).
 - **requestSource: 'web':** optional. When the SDK is used from the **browser/frontend**, pass `requestSource: 'web'` so the backend adds the header `X-Request-Source: web` on every Bearer-authenticated request. The backend will then classify those requests as **WEB** in logs instead of **JWT** (CLI/scripts). This option is only applied when using Bearer (token); it is never sent when using API Key.
 
 ## Public routes (no Bearer)
@@ -124,7 +124,7 @@ const clusters = await client.getClusters();
 - **User:** `getMe`, `getClusters`, `getPreferences`, `updatePreferences`, `getMyPlan`, `getPlansForUser`
 - **Status:** `getStatus(cid)`, `getAllocations(cid)`
 
-Responses are the **JSON object** returned by the API (no Axios-style wrapper). On error the SDK throws **`PinarkiveAPIError`** (extends `Error`) with `statusCode`, `message`, and optionally `code`, `required` (for 403 `missing_scope`), `retryAfterSeconds` (for 429). If `onUnauthorized` is defined, it is called on 401/403.
+Responses are the **JSON object** returned by the API (no Axios-style wrapper). On error the SDK throws **`PinarkiveAPIError`** (extends `Error`) with `statusCode`, `message`, and optionally `code`, `required` (for 403 `missing_scope`), `retryAfterSeconds` (for 429). If `onUnauthorized` is defined, it is called on 401.
 
 - **Scopes:** `generateToken(name, { scopes: ['files:read', 'files:write'], ... })`; response and list include `scopes`.
 - **429:** Catch `PinarkiveAPIError`, check `e.retryAfterSeconds` and retry after that delay (or show “retry” to the user).

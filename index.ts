@@ -26,7 +26,7 @@ export interface ClientOptions {
   /** JWT or API key for authenticated requests */
   token?: string;
   apiKey?: string;
-  /** Called on 401/403 so the app can logout/redirect */
+  /** Called on 401 so the app can logout/redirect */
   onUnauthorized?: () => void;
   /**
    * When set to 'web', sends header "X-Request-Source: web" on every Bearer-authenticated request.
@@ -240,7 +240,9 @@ export class PinarkiveClient {
           // ignore
         }
       }
-      if ([401, 403].includes(res.status) && this.onUnauthorized) {
+      // Treat only 401 as an invalid/expired session. 403 is often a legitimate
+      // authorization failure (e.g. missing_scope) and should not force logout.
+      if (res.status === 401 && this.onUnauthorized) {
         this.onUnauthorized();
       }
       const code = body?.code as string | undefined;
