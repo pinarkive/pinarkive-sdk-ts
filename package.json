@@ -1,14 +1,24 @@
 {
   "name": "@pinarkive/pinarkive-sdk-ts",
-  "version": "3.1.6",
+  "version": "3.1.7",
   "description": "TypeScript SDK for the Pinarkive API v3 - fetch-based, Bearer auth, clusterId (cl) and timelock support. Replaces secureFetch/publicFetch in apps.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist/index.js",
+    "dist/index.d.ts",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "npm run build && node --test dist/index.test.js",
+    "prepublishOnly": "npm run build"
   },
   "devDependencies": {
-    "typescript": "^5.5.4"
+    "@types/node": "^22.13.10",
+    "typescript": "^7.0.2"
   },
   "license": "MIT",
   "repository": {
